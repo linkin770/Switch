@@ -2,6 +2,7 @@
 import os
 import platform
 import subprocess
+from config import CONFIG
 
 # 尝试导入python-office相关库
 poexcel_available = False
@@ -41,24 +42,8 @@ try:
 except ImportError:
     pass
 
-def get_libreoffice_cmd():
-    system = platform.system()
-    if system == "Windows":
-        # 尝试多个可能的 LibreOffice 路径
-        possible_paths = [
-            r"C:\Program Files\LibreOffice\program\soffice.exe",
-            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
-            r"C:\LibreOffice\program\soffice.exe"
-        ]
-        for path in possible_paths:
-            if os.path.exists(path):
-                return path
-        # 如果都找不到，返回默认路径
-        return r"C:\Program Files\LibreOffice\program\soffice.exe"
-    else:
-        return "libreoffice"
-
-LIBREOFFICE_CMD = get_libreoffice_cmd()
+# 使用config.py中的LibreOffice路径
+LIBREOFFICE_CMD = CONFIG.LIBREOFFICE_CMD
 
 def convert_office_to_pdf(input_path, output_folder):
     os.makedirs(output_folder, exist_ok=True)

@@ -4,12 +4,12 @@ import shutil
 from flask import Flask, request, jsonify, send_from_directory
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tools import pdf_to_docx, txt_to_pdf, markdown_to_pdf, latex_to_pdf, convert_office_to_pdf, csv_to_xlsx, xlsx_to_csv, make_zip
+from config import CONFIG
 
 app = Flask(__name__)
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "outputs"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+UPLOAD_FOLDER = CONFIG.UPLOAD_FOLDER
+OUTPUT_FOLDER = CONFIG.OUTPUT_FOLDER
+MAX_WORKERS = CONFIG.MAX_WORKERS
 
 @app.route('/')
 def index():
@@ -58,6 +58,9 @@ def convert():
 
         # 同名文件自动加原格式区分：1.doc → 1_doc.pdf
         file_basename = os.path.splitext(relative_path)[0]
+        # 简化长文件名，避免路径过长导致问题
+        if len(file_basename) > 50:
+            file_basename = file_basename[:47] + "..."
         new_basename = f"{file_basename}_{ext}"
         out_path = os.path.join(OUTPUT_FOLDER, f"{new_basename}.{out_ext}")
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -167,11 +170,9 @@ def convert():
             return log_message, False
 
     # 使用线程池并行处理文件
-    # 增加线程池大小，对于IO密集型任务，可以使用更多线程
-    max_workers = max(4, os.cpu_count() * 2)  # 至少4个线程，最多CPU核心数的2倍
-    print(f"使用线程池，最大工作线程数: {max_workers}")
+    print(f"使用线程池，最大工作线程数: {MAX_WORKERS}")
     
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         # 提交所有任务
         future_to_file = {executor.submit(process_file, filename): filename for filename in saved_files}
         

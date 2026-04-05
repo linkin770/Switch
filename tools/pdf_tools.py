@@ -8,107 +8,164 @@ import fitz  # PyMuPDF
 from docx import Document
 from docx.shared import RGBColor, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from config import CONFIG
 
 # 初始化变量
 weasyprint = None
 WEASYPRINT_AVAILABLE = False
 
 # 尝试导入 weasyprint
-if False:  # 暂时禁用 weasyprint，避免 cairo 依赖问题
-    try:
-        import weasyprint
-        WEASYPRINT_AVAILABLE = True
-    except ImportError:
-        print("Warning: WeasyPrint not installed, will use FPDF as fallback")
-else:
-    print("Warning: WeasyPrint disabled, will use FPDF as fallback")
+try:
+    import weasyprint
+    WEASYPRINT_AVAILABLE = True
+    print("WeasyPrint 可用，将优先使用")
+except ImportError:
+    print("Warning: WeasyPrint not installed, will use FPDF as fallback")
 
 def txt_to_pdf(txt_path, pdf_path, font_size=12):
-    os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-    
-    # 首先尝试使用 weasyprint（如果可用）
-    if WEASYPRINT_AVAILABLE:
+    try:
+        print(f"开始转换TXT文件: {txt_path} → {pdf_path}")
+        os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+        
+        # 尝试使用python-docx创建一个简单的文档，然后转换为PDF
         try:
+            from docx import Document
+            from docx.shared import Pt
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            
+            print("使用python-docx创建文档")
+            doc = Document()
+            
+            # 设置页面边距
+            section = doc.sections[0]
+            section.left_margin = Pt(20)
+            section.right_margin = Pt(20)
+            section.top_margin = Pt(20)
+            section.bottom_margin = Pt(20)
+            
+            # 读取文本内容
             with open(txt_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            # 转换为 HTML，添加适当的样式
-            html_content = f'''
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <style>
-                    body {{
-                        font-family: Arial, sans-serif;
-                        font-size: {font_size}px;
-                        margin: 20px;
-                        line-height: 1.5;
-                    }}
-                    pre {{
-                        white-space: pre-wrap;
-                        word-wrap: break-word;
-                        font-family: Arial, sans-serif;
-                        margin: 0;
-                    }}
-                </style>
-            </head>
-            <body>
-                <pre>{content}</pre>
-            </body>
-            </html>
-            '''
+            # 添加文本到文档
+            paragraph = doc.add_paragraph()
+            run = paragraph.add_run(content)
+            run.font.size = Pt(font_size)
             
-            # 使用 weasyprint 生成 PDF
-            weasyprint.HTML(string=html_content).write_pdf(pdf_path)
-            return True
+            # 保存为临时DOCX文件
+            temp_docx = pdf_path.replace('.pdf', '.docx')
+            doc.save(temp_docx)
+            print(f"临时DOCX文件保存成功: {temp_docx}")
+            
+            # 使用convert_office_to_pdf函数将DOCX转换为PDF
+            from .office_tools import convert_office_to_pdf
+            result = convert_office_to_pdf(temp_docx, os.path.dirname(pdf_path))
+            
+            if result and os.path.exists(result):
+                # 如果生成的PDF路径与目标路径不同，重命名
+                if result != pdf_path:
+                    if os.path.exists(pdf_path):
+                        os.remove(pdf_path)
+                    os.rename(result, pdf_path)
+                
+                # 删除临时DOCX文件
+                if os.path.exists(temp_docx):
+                    os.remove(temp_docx)
+                
+                print(f"使用python-docx+convert_office_to_pdf转换成功: {pdf_path}")
+                return True
+            else:
+                print("使用python-docx+convert_office_to_pdf转换失败")
+                # 删除临时DOCX文件
+                if os.path.exists(temp_docx):
+                    os.remove(temp_docx)
         except Exception as e:
-            print(f"WeasyPrint 转换失败: {e}")
-    
-    # 如果 weasyprint 不可用或失败，使用 FPDF
-    try:
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=font_size)
-        pdf.set_auto_page_break(auto=True, margin=15)
+            print(f"python-docx转换失败: {e}")
+            import traceback
+            traceback.print_exc()
         
-        # 读取文本并处理长行
-        with open(txt_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                text = line.rstrip()
-                if not text:
-                    pdf.ln(5)
-                    continue
+        # 首先尝试使用 weasyprint（如果可用）
+        if WEASYPRINT_AVAILABLE:
+            try:
+                print("使用WeasyPrint进行转换")
+                with open(txt_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
                 
-                # 处理长行，手动换行
-                max_width = pdf.w - 20  # 页面宽度减去边距
-                words = text.split()
-                current_line = []
-                current_width = 0
+                # 转换为 HTML，添加适当的样式
+                html_content = f'''
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <style>
+                        body {{
+                            font-family: Arial, sans-serif;
+                            font-size: {font_size}px;
+                            margin: 20px;
+                            line-height: 1.5;
+                        }}
+                        pre {{
+                            white-space: pre-wrap;
+                            word-wrap: break-word;
+                            font-family: Arial, sans-serif;
+                            margin: 0;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <pre>{content}</pre>
+                </body>
+                </html>
+                '''
                 
-                for word in words:
-                    word_width = pdf.get_string_width(word) + pdf.get_string_width(' ')
-                    if current_width + word_width <= max_width:
-                        current_line.append(word)
-                        current_width += word_width
-                    else:
-                        # 写入当前行
-                        if current_line:
-                            pdf.cell(0, 10, ' '.join(current_line))
-                            pdf.ln()
-                        # 开始新行
-                        current_line = [word]
-                        current_width = word_width
-                
-                # 写入最后一行
-                if current_line:
-                    pdf.cell(0, 10, ' '.join(current_line))
-                    pdf.ln()
+                # 使用 weasyprint 生成 PDF
+                weasyprint.HTML(string=html_content).write_pdf(pdf_path)
+                print(f"WeasyPrint转换成功: {pdf_path}")
+                return True
+            except Exception as e:
+                print(f"WeasyPrint 转换失败: {e}")
+                import traceback
+                traceback.print_exc()
         
-        pdf.output(pdf_path)
-        return True
+        # 尝试使用 LibreOffice 转换
+        try:
+            print("使用LibreOffice进行转换")
+            from .office_tools import LIBREOFFICE_CMD
+            import subprocess
+            
+            # 构建命令
+            cmd = [LIBREOFFICE_CMD, "--headless", "--convert-to", "pdf", "--outdir", os.path.dirname(pdf_path), txt_path]
+            print(f"执行命令: {' '.join(cmd)}")
+            
+            # 执行命令
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                # LibreOffice会生成与TXT同名的PDF文件
+                libreoffice_output = os.path.join(os.path.dirname(pdf_path), f"{os.path.splitext(os.path.basename(txt_path))[0]}.pdf")
+                if os.path.exists(libreoffice_output):
+                    # 如果生成的文件与目标路径不同，重命名
+                    if libreoffice_output != pdf_path:
+                        if os.path.exists(pdf_path):
+                            os.remove(pdf_path)
+                        os.rename(libreoffice_output, pdf_path)
+                    print(f"LibreOffice转换成功: {pdf_path}")
+                    return True
+                else:
+                    print("LibreOffice转换失败：未生成输出文件")
+            else:
+                print(f"LibreOffice转换失败: {result.stderr}")
+        except Exception as e:
+            print(f"LibreOffice转换失败: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # 如果所有方法都失败，返回False
+        print("所有转换方法都失败")
+        return False
     except Exception as e:
-        print(f"FPDF 转换失败: {e}")
+        print(f"TXT转PDF失败: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def markdown_to_pdf(md_path, pdf_path):
@@ -211,8 +268,9 @@ def fast_pdf_to_docx(pdf_path, docx_path):
         if num_pages > 0:
             # 提取第一页图像
             page = pdf.load_page(0)
-            pix = page.get_pixmap(dpi=300)  # 设置300DPI，提高清晰度
-            img_path = f"temp_page_0.png"
+            pix = page.get_pixmap(dpi=CONFIG.PDF_DPI)  # 设置DPI，提高清晰度
+            # 使用绝对路径保存临时图像，确保在Linux上也能正常工作
+            img_path = os.path.join(os.path.dirname(docx_path), f"temp_page_0.png")
             pix.save(img_path)
             
             # 添加红色大字提示（作为图像的标题）
@@ -245,9 +303,10 @@ def fast_pdf_to_docx(pdf_path, docx_path):
             
             page = pdf.load_page(page_num)
             # 提取页面为高清晰度图像
-            pix = page.get_pixmap(dpi=300)  # 设置300DPI，提高清晰度
+            pix = page.get_pixmap(dpi=CONFIG.PDF_DPI)  # 设置DPI，提高清晰度
             # 保存临时图像
-            img_path = f"temp_page_{page_num}.png"
+            # 使用绝对路径保存临时图像，确保在Linux上也能正常工作
+            img_path = os.path.join(os.path.dirname(docx_path), f"temp_page_{page_num}.png")
             pix.save(img_path)
             
             # 将图像添加到DOCX
@@ -270,15 +329,8 @@ def fast_pdf_to_docx(pdf_path, docx_path):
         print(f"快速转换失败: {e}")
         return False
 
-def get_libreoffice_cmd():
-    import platform
-    system = platform.system()
-    if system == "Windows":
-        return r"C:\Program Files\LibreOffice\program\soffice.exe"
-    else:
-        return "libreoffice"
-
-LIBREOFFICE_CMD = get_libreoffice_cmd()
+# 使用config.py中的LibreOffice路径
+LIBREOFFICE_CMD = CONFIG.LIBREOFFICE_CMD
 
 def pdf_to_docx(pdf_path, docx_path):
     os.makedirs(os.path.dirname(docx_path), exist_ok=True)
