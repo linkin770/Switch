@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>办公文件跨格式本地化转换工具</title>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "微软雅黑", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        /* 毛玻璃效果 */
+        .glass-container {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            padding: 30px;
+            max-width: 700px;
+            width: 100%;
+        }
+        
+        /* 头部样式 */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .logo {
+            height: 100px;
+            object-fit: contain;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+        }
+        
+        h2 {
+            color: #2c3e50;
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        /* 内容区域 */
+        .content {
+            text-align: left;
+        }
+        
+        /* 表单元素 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #34495e;
+            font-weight: 500;
+        }
+        
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.5);
+            font-size: 16px;
+            color: #34495e;
+            transition: all 0.3s ease;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: #2E8B57;
+            box-shadow: 0 0 0 3px rgba(46, 139, 87, 0.1);
+        }
+        
+        /* 文件选择 */
+        .file-input {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .file-input input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        
+        .file-label {
+            display: block;
+            padding: 12px;
+            border: 2px dashed rgba(46, 139, 87, 0.5);
+            border-radius: 8px;
+            text-align: center;
+            color: #2E8B57;
+            background: rgba(46, 139, 87, 0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .file-label:hover {
+            border-color: #2E8B57;
+            background: rgba(46, 139, 87, 0.1);
+        }
+        
+        /* 按钮样式 */
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #startBtn {
+            background: linear-gradient(135deg, #2E8B57, #27ae60);
+            color: white;
+        }
+        
+        #startBtn:hover {
+            background: linear-gradient(135deg, #27ae60, #2E8B57);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(46, 139, 87, 0.3);
+        }
+        
+        #clearTempBtn {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+        }
+        
+        #clearTempBtn:hover {
+            background: linear-gradient(135deg, #c0392b, #e74c3c);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+        
+        /* 结果区域 */
+        #result {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            white-space: pre-wrap;
+            color: #34495e;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        /* 下载链接 */
+        #downloads {
+            margin-top: 20px;
+        }
+        
+        #downloads a {
+            display: block;
+            margin-top: 10px;
+            padding: 10px 15px;
+            background: rgba(46, 139, 87, 0.1);
+            color: #2E8B57;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        #downloads a:hover {
+            background: rgba(46, 139, 87, 0.2);
+            transform: translateX(5px);
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .glass-container {
+                padding: 20px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .logo {
+                height: 80px;
+            }
+            
+            h2 {
+                font-size: 20px;
+            }
+        }
+        
+        /* 选择器包装器 */
+        .select-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        
+        /* 提示框样式 */
+        .tooltip {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 10px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+        }
+        
+        /* 下拉菜单选项样式 */
+        select option {
+            position: relative;
+        }
+        
+        /* 加载动画 */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* 成功和失败消息样式 */
+        .success {
+            color: #2E8B57;
+            font-weight: 500;
+        }
+        
+        .error {
+            color: #e74c3c;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="glass-container">
+        <!-- 居中：LOGO + 标题 -->
+        <div class="header">
+            <img src="./static/icon.png" class="logo" alt="LOGO">
+            <h2>办公文件跨格式本地化转换工具</h2>
+        </div>
+
+        <!-- 左对齐：转换选项 + 文件选择 + 按钮 -->
+        <div class="content">
+            <div class="form-group">
+                <label for="fmt">转换为：</label>
+                <div class="select-wrapper">
+                    <select id="fmt">
+                        <option value="pdf" data-supported=".txt, .doc, .docx, .rtf, .html, .xml, .md, .tex, .xls, .xlsx, .ppt, .pptx">PDF</option>
+                        <option value="docx" data-supported=".pdf">Word (.docx)</option>
+                        <option value="xlsx" data-supported=".csv">Excel (.xlsx)</option>
+                        <option value="csv" data-supported=".xlsx, .xls">CSV</option>
+                    </select>
+                    <div class="tooltip" id="formatTooltip"></div>
+                </div>
+            </div>
+
+            <div class="file-input">
+                <label class="file-label">
+                    <span>点击或拖拽文件到此处</span>
+                    <input type="file" id="files" multiple accept=".xlsx,.xls,.csv,.pdf,.docx,.doc,.txt,.md,.tex,.rtf,.html,.xml,.ppt,.pptx">
+                </label>
+            </div>
+
+            <div class="button-group">
+                <button id="startBtn">开始转换</button>
+                <button id="clearTempBtn">清空临时文件</button>
+            </div>
+            
+            <div id="clearResult"></div>
+            <div id="result"></div>
+            <div id="downloads"></div>
+        </div>
+    </div>
+
+    <script src="/static/script.js?v=123456"></script>
+</body>
+</html>
