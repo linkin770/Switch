@@ -92,12 +92,12 @@ bash start.sh
 | 版本 | 日期 | 主要变更 |
 |------|------|----------|
 | v1.0.20260512 | 2026-05-12 | 升级依赖兼容Python 3.12，重构转换回退链，添加类型注解，修复安全与类型问题 |
-| v1.0.0 | 2026-04-05 | 初始版本，实现基本文件转换功能 |
+| v1.0.20260405 | 2026-04-05 | 初始版本，实现基本文件转换功能 |
 
 ### 发布说明
 
 - **v1.0.20260512**：
-  - 升级 Flask 至 3.x，所有依赖兼容 Python 3.12
+  - 升级 Flask 至 >=3.0,<4.0，所有依赖兼容 Python 3.12
   - 重构 Office 转换回退链，修复 comtypes/win32com 嵌套 bug，Excel/PPT 转换不再依赖 poexcel
   - 为所有工具函数添加类型注解，修复 basedpyright 类型警告
   - 修复 config.py `os.cpu_count()` 返回 None 的类型问题
@@ -105,7 +105,7 @@ bash start.sh
   - 添加 `.gitignore` 和 `pyrightconfig.json`
   - 从 git 追踪中移除 `__pycache__/`、`uploads/` 等运行时文件
 
-- **v1.0.0**：
+- **v1.0.20260405**：
   - 实现了PDF、DOCX、Excel、PPT、TXT、Markdown、LaTeX、CSV等格式的转换
   - 支持批量处理和多线程并行转换
   - 实现了扫描PDF的检测和处理
