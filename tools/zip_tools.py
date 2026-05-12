@@ -2,7 +2,7 @@
 import os
 import zipfile
 
-def make_zip(folder_path, zip_path):
+def make_zip(folder_path: str, zip_path: str) -> None:
     with zipfile.ZipFile(zip_path, 'w') as zipf:
         for root, _, files in os.walk(folder_path):
             for f in files:

@@ -22,7 +22,7 @@ try:
 except ImportError:
     print("Warning: WeasyPrint not installed, will use FPDF as fallback")
 
-def txt_to_pdf(txt_path, pdf_path, font_size=12):
+def txt_to_pdf(txt_path: str, pdf_path: str, font_size: int = 12) -> bool:
     try:
         print(f"开始转换TXT文件: {txt_path} → {pdf_path}")
         os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
@@ -168,7 +168,7 @@ def txt_to_pdf(txt_path, pdf_path, font_size=12):
         traceback.print_exc()
         return False
 
-def markdown_to_pdf(md_path, pdf_path):
+def markdown_to_pdf(md_path: str, pdf_path: str) -> bool:
     os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
     if WEASYPRINT_AVAILABLE:
         try:
@@ -229,7 +229,7 @@ def markdown_to_pdf(md_path, pdf_path):
         print(f"FPDF 转换 Markdown 失败: {e}")
         return False
 
-def latex_to_pdf(tex_path, output_folder):
+def latex_to_pdf(tex_path: str, output_folder: str) -> bool:
     os.makedirs(output_folder, exist_ok=True)
     cmd = ["pdflatex", "-interaction=nonstopmode", "-output-directory", output_folder, tex_path]
     try:
@@ -239,7 +239,7 @@ def latex_to_pdf(tex_path, output_folder):
         print(f"LaTeX 转 PDF 失败: {e}")
         return False
 
-def fast_pdf_to_docx(pdf_path, docx_path):
+def fast_pdf_to_docx(pdf_path: str, docx_path: str) -> bool:
     """快速转换扫描版PDF到DOCX（仅提取图像）"""
     os.makedirs(os.path.dirname(docx_path), exist_ok=True)
     try:
@@ -332,7 +332,7 @@ def fast_pdf_to_docx(pdf_path, docx_path):
 # 使用config.py中的LibreOffice路径
 LIBREOFFICE_CMD = CONFIG.LIBREOFFICE_CMD
 
-def pdf_to_docx(pdf_path, docx_path):
+def pdf_to_docx(pdf_path: str, docx_path: str) -> bool:
     os.makedirs(os.path.dirname(docx_path), exist_ok=True)
     
     # 优先尝试使用LibreOffice

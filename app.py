@@ -3,13 +3,16 @@ import os
 import shutil
 from flask import Flask, request, jsonify, send_from_directory
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tools import pdf_to_docx, txt_to_pdf, markdown_to_pdf, latex_to_pdf, convert_office_to_pdf, csv_to_xlsx, xlsx_to_csv, make_zip
+from tools.pdf_tools import pdf_to_docx, txt_to_pdf, markdown_to_pdf, latex_to_pdf
+from tools.office_tools import convert_office_to_pdf, csv_to_xlsx, xlsx_to_csv
+from tools.zip_tools import make_zip
 from config import CONFIG
+import fitz  # type: ignore  # PyMuPDF 提供 fitz 模块，运行时可用
 
 app = Flask(__name__)
 UPLOAD_FOLDER = CONFIG.UPLOAD_FOLDER
 OUTPUT_FOLDER = CONFIG.OUTPUT_FOLDER
-MAX_WORKERS = CONFIG.MAX_WORKERS
+MAX_WORKERS: int = CONFIG.MAX_WORKERS
 
 @app.route('/')
 def index():
@@ -31,7 +34,9 @@ def convert():
     # 保存所有文件
     saved_files = []
     for file in files:
-        filename = file.filename
+        filename = file.filename or ""
+        if not filename:
+            continue
         input_path = os.path.join(UPLOAD_FOLDER, filename)
         os.makedirs(os.path.dirname(input_path), exist_ok=True)
         
@@ -89,7 +94,7 @@ def convert():
                 if func:
                     if ext in ["doc", "docx", "rtf", "html", "xml", "xls", "xlsx", "ppt", "pptx"]:
                         generated_pdf = func(input_path, os.path.dirname(out_path))
-                        ok = generated_pdf is not None and os.path.exists(generated_pdf)
+                        ok = isinstance(generated_pdf, str) and os.path.exists(generated_pdf)
                         if ok and generated_pdf != out_path:
                             # 如果目标文件存在，先删除它
                             if os.path.exists(out_path):
@@ -103,6 +108,7 @@ def convert():
                             retry_count = 0
                             while retry_count < max_retries:
                                 try:
+                                    assert isinstance(generated_pdf, str)
                                     os.rename(generated_pdf, out_path)
                                     break
                                 except Exception as e:
@@ -135,13 +141,12 @@ def convert():
             elif target_format == "docx":
                 if ext == "pdf":
                     # 检查PDF是否为扫描版
-                    import fitz
                     doc = fitz.open(input_path)
                     total_words = 0
                     for page_num in range(min(3, len(doc))):
                         page = doc.load_page(page_num)
                         text = page.get_text()
-                        total_words += len(text.split())
+                        total_words += len(str(text).split())
                     doc.close()
                     is_scanned = total_words == 0
                     

@@ -11,6 +11,9 @@ poword_available = False
 pandas_available = False
 python_docx_available = False
 weasyprint_available = False
+comtypes_available = False
+win32com_available = False
+
 try:
     import poexcel
     poexcel_available = True
@@ -41,259 +44,353 @@ try:
     weasyprint_available = True
 except ImportError:
     pass
+try:
+    import comtypes.client
+    comtypes_available = True
+except ImportError:
+    pass
+try:
+    import win32com.client
+    import pythoncom
+    win32com_available = True
+except ImportError:
+    pass
 
 # 使用config.py中的LibreOffice路径
 LIBREOFFICE_CMD = CONFIG.LIBREOFFICE_CMD
 
-def convert_office_to_pdf(input_path, output_folder):
-    os.makedirs(output_folder, exist_ok=True)
-    
-    # 检查文件扩展名
-    ext = os.path.splitext(input_path)[1].lower()
-    base_name = os.path.splitext(os.path.basename(input_path))[0]
-    pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
-    
-    # 优先使用python-docx结合weasyprint
-    if ext == ".docx" and python_docx_available and weasyprint_available:
-        try:
-            print("使用python-docx结合weasyprint转换DOCX为PDF")
-            
-            # 使用python-docx读取DOCX文件
-            doc = Document(input_path)
-            
-            # 构建HTML内容
-            html_content = f'''
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <style>
-                    body {{
-                        font-family: Arial, sans-serif;
-                        font-size: 12px;
-                        margin: 20px;
-                        line-height: 1.5;
-                    }}
-                    h1, h2, h3, h4, h5, h6 {{
-                        margin-top: 20px;
-                        margin-bottom: 10px;
-                    }}
-                    p {{
-                        margin-bottom: 10px;
-                    }}
-                    table {{
-                        border-collapse: collapse;
-                        width: 100%;
-                        margin-bottom: 10px;
-                    }}
-                    th, td {{
-                        border: 1px solid #ddd;
-                        padding: 8px;
-                        text-align: left;
-                    }}
-                    th {{
-                        background-color: #f2f2f2;
-                    }}
-                    ul, ol {{
-                        margin-bottom: 10px;
-                    }}
-                </style>
-            </head>
-            <body>
-            '''
-            
-            # 添加文档内容
-            for paragraph in doc.paragraphs:
-                text = paragraph.text
-                if text:
-                    # 检查段落是否有样式
-                    style_name = paragraph.style.name
-                    if style_name.startswith('Heading'):
-                        # 根据标题级别生成HTML标题标签
-                        level = style_name.split(' ')[1] if len(style_name.split(' ')) > 1 else '1'
-                        html_content += f'<h{level}>{text}</h{level}>'
-                    else:
-                        html_content += f'<p>{text}</p>'
-                else:
-                    html_content += '<p>&nbsp;</p>'
-            
-            # 处理表格
-            for table in doc.tables:
-                html_content += '<table>'
-                # 处理表头
-                for row in table.rows:
-                    html_content += '<tr>'
-                    for cell in row.cells:
-                        html_content += f'<td>{cell.text}</td>'
-                    html_content += '</tr>'
-                html_content += '</table>'
-            
-            html_content += '''
-            </body>
-            </html>
-            '''
-            
-            # 使用weasyprint将HTML转换为PDF
-            weasyprint.HTML(string=html_content).write_pdf(pdf_path)
-            
-            print(f"使用python-docx结合weasyprint成功转换DOCX为PDF: {pdf_path}")
-            return pdf_path
-        except Exception as e:
-            print(f"python-docx结合weasyprint转换失败: {e}")
-    
-    # 尝试使用python-office相关库
-    if ext == ".docx" and poword_available:
-        try:
-            # 使用poword将DOCX转换为PDF
-            poword.docx2pdf(path=input_path, output_path=os.path.dirname(pdf_path))
-            
-            # 检查生成的PDF文件是否存在
-            if os.path.exists(pdf_path):
-                print(f"使用poword成功转换DOCX为PDF: {pdf_path}")
-                return pdf_path
-            else:
-                # 如果生成的PDF文件路径与期望路径不同，尝试找到它
-                generated_pdf = os.path.join(os.path.dirname(pdf_path), f"{os.path.splitext(os.path.basename(input_path))[0]}.pdf")
-                if os.path.exists(generated_pdf):
-                    print(f"使用poword成功转换DOCX为PDF: {generated_pdf}")
-                    return generated_pdf
-        except Exception as e:
-            print(f"poword转换失败: {e}")
-    
-    elif ext in [".xls", ".xlsx"] and poexcel_available:
-        try:
-            # 使用poexcel将Excel转换为PDF
-            print("使用poexcel转换Excel为PDF")
-            # 尝试使用poexcel的excel2pdf函数
-            try:
-                # 尝试不同的参数组合
-                try:
-                    # 尝试使用第一个参数作为输入路径，第二个参数作为输出路径
-                    poexcel.excel2pdf(input_path, os.path.dirname(pdf_path))
-                except TypeError:
-                    # 尝试使用关键字参数
-                    try:
-                        poexcel.excel2pdf(input_path=input_path, output_path=os.path.dirname(pdf_path))
-                    except TypeError:
-                        # 尝试使用其他可能的参数名
-                        poexcel.excel2pdf(file=input_path, output=os.path.dirname(pdf_path))
-            except AttributeError as e:
-                print(f"poexcel没有excel2pdf函数: {e}")
-                # 如果poexcel没有excel2pdf函数，使用comtypes作为备选方案
-                try:
-                    import comtypes.client
-                    print("使用comtypes转换Excel为PDF")
-                    
-                    # 创建Excel应用程序对象
-                    xlApp = comtypes.client.CreateObject("Excel.Application")
-                    xlApp.Visible = False
-                    xlApp.DisplayAlerts = 0
-                    
-                    # 打开工作簿
-                    books = xlApp.Workbooks.Open(os.path.abspath(input_path), False)
-                    
-                    # 导出为PDF
-                    books.ExportAsFixedFormat(0, os.path.abspath(pdf_path))
-                    books.Close(False)
-                    xlApp.Quit()
-                    print("使用comtypes成功转换Excel为PDF")
-                except ImportError:
-                    print("comtypes不可用，尝试其他方法")
-                except Exception as e:
-                    print(f"comtypes转换失败: {e}")
-            
-            # 检查生成的PDF文件是否存在
-            if os.path.exists(pdf_path):
-                print(f"使用poexcel成功转换Excel为PDF: {pdf_path}")
-                return pdf_path
-            else:
-                # 如果生成的PDF文件路径与期望路径不同，尝试找到它
-                generated_pdf = os.path.join(os.path.dirname(pdf_path), f"{os.path.splitext(os.path.basename(input_path))[0]}.pdf")
-                if os.path.exists(generated_pdf):
-                    print(f"使用poexcel成功转换Excel为PDF: {generated_pdf}")
-                    return generated_pdf
-                else:
-                    print(f"PDF文件不存在: {pdf_path}")
-        except ImportError:
-            print("comtypes不可用，尝试其他方法")
-        except Exception as e:
-            print(f"poexcel转换失败: {e}")
-    
-    elif ext in [".ppt", ".pptx"] and poppt_available:
-        try:
-            # 使用poppt将PPT转换为PDF
-            print("使用poppt转换PPT为PDF")
-            poppt.ppt2pdf(path=input_path, output_path=os.path.dirname(pdf_path))
-            
-            # 检查生成的PDF文件是否存在
-            if os.path.exists(pdf_path):
-                print(f"使用poppt成功转换PPT为PDF: {pdf_path}")
-                return pdf_path
-            else:
-                # 如果生成的PDF文件路径与期望路径不同，尝试找到它
-                generated_pdf = os.path.join(os.path.dirname(pdf_path), f"{os.path.splitext(os.path.basename(input_path))[0]}.pdf")
-                if os.path.exists(generated_pdf):
-                    print(f"使用poppt成功转换PPT为PDF: {generated_pdf}")
-                    return generated_pdf
-        except Exception as e:
-            print(f"poppt转换失败: {e}")
-    
-    # 尝试使用LibreOffice
+
+def _try_libreoffice(input_path: str, output_folder: str, pdf_path: str) -> str | None:
+    """尝试使用 LibreOffice 转换"""
     try:
-        # 确保路径是绝对路径，避免LibreOffice路径问题
-        input_path = os.path.abspath(input_path)
-        output_folder = os.path.abspath(output_folder)
-        
-        # 构建转换命令
-        cmd = [LIBREOFFICE_CMD, "--headless", "--convert-to", "pdf", "--outdir", output_folder, input_path]
-        
-        # 执行命令并捕获输出
+        abs_input = os.path.abspath(input_path)
+        abs_output = os.path.abspath(output_folder)
+        cmd = [LIBREOFFICE_CMD, "--headless", "--convert-to", "pdf", "--outdir", abs_output, abs_input]
         result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
+        if result.returncode == 0 and os.path.exists(pdf_path):
             print(f"LibreOffice转换成功: {input_path}")
             return pdf_path
         else:
-            print(f"LibreOffice转换失败: {result.stderr}")
+            print(f"LibreOffice转换失败: {result.stderr.strip() or '未知错误'}")
     except Exception as e:
         print(f"LibreOffice转换失败: {e}")
-    
-    # 尝试使用Word（在Windows上）
-    if platform.system() == "Windows" and ext in [".doc", ".docx"]:
-        try:
-            import win32com.client
-            import pythoncom
-            
-            # 初始化COM
-            pythoncom.CoInitialize()
-            
-            # 创建Word应用程序对象
-            word = win32com.client.Dispatch('Word.Application')
-            word.Visible = False
-            word.DisplayAlerts = 0
-            
-            # 打开文档
-            doc = word.Documents.Open(os.path.abspath(input_path))
-            
-            # 保存为PDF
-            doc.SaveAs(os.path.abspath(pdf_path), FileFormat=17)  # 17 is PDF format
-            doc.Close()
-            word.Quit()
-            
-            # 释放COM资源
-            pythoncom.CoUninitialize()
-            
-            print(f"使用Word成功转换DOCX为PDF: {pdf_path}")
-            return pdf_path
-        except ImportError:
-            print("pywin32不可用，尝试其他方法")
-        except Exception as e:
-            print(f"Word转换失败: {e}")
-    
-
-    
     return None
 
-def csv_to_xlsx(csv_path, xlsx_path):
+
+def _try_comtypes_excel(input_path: str, pdf_path: str) -> str | None:
+    """尝试使用 comtypes (Excel COM) 转换"""
+    if not comtypes_available:
+        return None
+    try:
+        import comtypes.client
+        print("尝试使用 comtypes (Excel COM) 转换")
+        xl_app = comtypes.client.CreateObject("Excel.Application")
+        xl_app.Visible = False
+        xl_app.DisplayAlerts = 0
+        books = xl_app.Workbooks.Open(os.path.abspath(input_path), False)
+        books.ExportAsFixedFormat(0, os.path.abspath(pdf_path))
+        books.Close(False)
+        xl_app.Quit()
+        if os.path.exists(pdf_path):
+            print(f"comtypes Excel转换成功: {pdf_path}")
+            return pdf_path
+    except Exception as e:
+        print(f"comtypes Excel转换失败: {e}")
+    return None
+
+
+def _try_comtypes_powerpoint(input_path: str, pdf_path: str) -> str | None:
+    """尝试使用 comtypes (PowerPoint COM) 转换"""
+    if not comtypes_available:
+        return None
+    try:
+        import comtypes.client
+        print("尝试使用 comtypes (PowerPoint COM) 转换")
+        ppt_app = comtypes.client.CreateObject("PowerPoint.Application")
+        ppt_app.Visible = True
+        presentation = ppt_app.Presentations.Open(os.path.abspath(input_path), WithWindow=False)
+        presentation.SaveAs(os.path.abspath(pdf_path), 32)  # 32 = ppSaveAsPDF
+        presentation.Close()
+        ppt_app.Quit()
+        if os.path.exists(pdf_path):
+            print(f"comtypes PowerPoint转换成功: {pdf_path}")
+            return pdf_path
+    except Exception as e:
+        print(f"comtypes PowerPoint转换失败: {e}")
+    return None
+
+
+def _try_comtypes_word(input_path: str, pdf_path: str) -> str | None:
+    """尝试使用 comtypes (Word COM) 转换"""
+    if not comtypes_available:
+        return None
+    try:
+        import comtypes.client
+        print("尝试使用 comtypes (Word COM) 转换")
+        word_app = comtypes.client.CreateObject("Word.Application")
+        word_app.Visible = False
+        word_app.DisplayAlerts = 0
+        doc = word_app.Documents.Open(os.path.abspath(input_path))
+        doc.SaveAs(os.path.abspath(pdf_path), FileFormat=17)  # 17 = wdFormatPDF
+        doc.Close()
+        word_app.Quit()
+        if os.path.exists(pdf_path):
+            print(f"comtypes Word转换成功: {pdf_path}")
+            return pdf_path
+    except Exception as e:
+        print(f"comtypes Word转换失败: {e}")
+    return None
+
+
+def _try_win32com_word(input_path: str, pdf_path: str) -> str | None:
+    """尝试使用 win32com (Word) 转换"""
+    if not win32com_available:
+        return None
+    try:
+        import win32com.client
+        import pythoncom
+        print("尝试使用 win32com (Word) 转换")
+        pythoncom.CoInitialize()
+        word = win32com.client.Dispatch('Word.Application')
+        word.Visible = False
+        word.DisplayAlerts = 0
+        doc = word.Documents.Open(os.path.abspath(input_path))
+        doc.SaveAs(os.path.abspath(pdf_path), FileFormat=17)
+        doc.Close()
+        word.Quit()
+        pythoncom.CoUninitialize()
+        if os.path.exists(pdf_path):
+            print(f"win32com Word转换成功: {pdf_path}")
+            return pdf_path
+    except Exception as e:
+        print(f"win32com Word转换失败: {e}")
+    return None
+
+
+def _try_win32com_excel(input_path: str, pdf_path: str) -> str | None:
+    """尝试使用 win32com (Excel) 转换"""
+    if not win32com_available:
+        return None
+    try:
+        import win32com.client
+        import pythoncom
+        print("尝试使用 win32com (Excel) 转换")
+        pythoncom.CoInitialize()
+        xl = win32com.client.Dispatch('Excel.Application')
+        xl.Visible = False
+        xl.DisplayAlerts = 0
+        wb = xl.Workbooks.Open(os.path.abspath(input_path))
+        wb.ExportAsFixedFormat(0, os.path.abspath(pdf_path))
+        wb.Close(False)
+        xl.Quit()
+        pythoncom.CoUninitialize()
+        if os.path.exists(pdf_path):
+            print(f"win32com Excel转换成功: {pdf_path}")
+            return pdf_path
+    except Exception as e:
+        print(f"win32com Excel转换失败: {e}")
+    return None
+
+
+def _try_win32com_powerpoint(input_path: str, pdf_path: str) -> str | None:
+    """尝试使用 win32com (PowerPoint) 转换"""
+    if not win32com_available:
+        return None
+    try:
+        import win32com.client
+        import pythoncom
+        print("尝试使用 win32com (PowerPoint) 转换")
+        pythoncom.CoInitialize()
+        ppt = win32com.client.Dispatch('PowerPoint.Application')
+        presentation = ppt.Presentations.Open(os.path.abspath(input_path), WithWindow=False)
+        presentation.SaveAs(os.path.abspath(pdf_path), 32)  # 32 = ppSaveAsPDF
+        presentation.Close()
+        ppt.Quit()
+        pythoncom.CoUninitialize()
+        if os.path.exists(pdf_path):
+            print(f"win32com PowerPoint转换成功: {pdf_path}")
+            return pdf_path
+    except Exception as e:
+        print(f"win32com PowerPoint转换失败: {e}")
+    return None
+
+
+def _find_generated_pdf(output_folder: str, base_name: str, pdf_path: str) -> str | None:
+    """检查期望路径或同目录下的同名PDF是否存在"""
+    if os.path.exists(pdf_path):
+        return pdf_path
+    alt = os.path.join(output_folder, f"{base_name}.pdf")
+    if os.path.exists(alt) and alt != pdf_path:
+        return alt
+    return None
+
+
+def convert_office_to_pdf(input_path: str, output_folder: str) -> str | None:
+    os.makedirs(output_folder, exist_ok=True)
+
+    ext = os.path.splitext(input_path)[1].lower()
+    base_name = os.path.splitext(os.path.basename(input_path))[0]
+    pdf_path = os.path.join(output_folder, f"{base_name}.pdf")
+
+    # ========== DOCX 回退链 ==========
+    if ext == ".docx":
+        # 方法1: python-docx + weasyprint
+        if python_docx_available and weasyprint_available:
+            try:
+                print("[DOCX → PDF] 方法1: python-docx + weasyprint")
+                doc = Document(input_path)
+                html_content = '''<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; line-height: 1.5; }
+h1,h2,h3,h4,h5,h6 { margin-top: 20px; margin-bottom: 10px; }
+p { margin-bottom: 10px; }
+table { border-collapse: collapse; width: 100%; margin-bottom: 10px; }
+th,td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background-color: #f2f2f2; }
+ul,ol { margin-bottom: 10px; }
+</style></head><body>'''
+                for paragraph in doc.paragraphs:
+                    text = paragraph.text
+                    if text:
+                        style_name = paragraph.style.name
+                        if style_name.startswith('Heading'):
+                            level = style_name.split(' ')[1] if len(style_name.split(' ')) > 1 else '1'
+                            html_content += f'<h{level}>{text}</h{level}>'
+                        else:
+                            html_content += f'<p>{text}</p>'
+                    else:
+                        html_content += '<p>&nbsp;</p>'
+                for table in doc.tables:
+                    html_content += '<table>'
+                    for row in table.rows:
+                        html_content += '<tr>'
+                        for cell in row.cells:
+                            html_content += f'<td>{cell.text}</td>'
+                        html_content += '</tr>'
+                    html_content += '</table>'
+                html_content += '</body></html>'
+                weasyprint.HTML(string=html_content).write_pdf(pdf_path)
+                result = _find_generated_pdf(output_folder, base_name, pdf_path)
+                if result:
+                    print(f"[DOCX → PDF] 方法1成功: {result}")
+                    return result
+            except Exception as e:
+                print(f"[DOCX → PDF] 方法1失败: {e}")
+
+        # 方法2: poword
+        if poword_available:
+            try:
+                print("[DOCX → PDF] 方法2: poword")
+                poword.docx2pdf(path=input_path, output_path=os.path.dirname(pdf_path))
+                result = _find_generated_pdf(output_folder, base_name, pdf_path)
+                if result:
+                    print(f"[DOCX → PDF] 方法2成功: {result}")
+                    return result
+            except Exception as e:
+                print(f"[DOCX → PDF] 方法2失败: {e}")
+
+        # 方法3: comtypes Word COM
+        result = _try_comtypes_word(input_path, pdf_path)
+        if result:
+            return result
+
+        # 方法4: LibreOffice
+        result = _try_libreoffice(input_path, output_folder, pdf_path)
+        if result:
+            return result
+
+        # 方法5: win32com Word
+        result = _try_win32com_word(input_path, pdf_path)
+        if result:
+            return result
+
+    # ========== XLS / XLSX 回退链 ==========
+    elif ext in [".xls", ".xlsx"]:
+        # 方法1: poexcel
+        if poexcel_available:
+            try:
+                print("[Excel → PDF] 方法1: poexcel")
+                try:
+                    poexcel.excel2pdf(input_path, os.path.dirname(pdf_path))
+                except TypeError:
+                    try:
+                        poexcel.excel2pdf(input_path=input_path, output_path=os.path.dirname(pdf_path))
+                    except TypeError:
+                        poexcel.excel2pdf(file=input_path, output=os.path.dirname(pdf_path))
+                result = _find_generated_pdf(output_folder, base_name, pdf_path)
+                if result:
+                    print(f"[Excel → PDF] 方法1成功: {result}")
+                    return result
+            except AttributeError:
+                print("[Excel → PDF] 方法1: poexcel缺少excel2pdf函数")
+            except Exception as e:
+                print(f"[Excel → PDF] 方法1失败: {e}")
+
+        # 方法2: comtypes Excel COM
+        result = _try_comtypes_excel(input_path, pdf_path)
+        if result:
+            return result
+
+        # 方法3: LibreOffice
+        result = _try_libreoffice(input_path, output_folder, pdf_path)
+        if result:
+            return result
+
+        # 方法4: win32com Excel
+        result = _try_win32com_excel(input_path, pdf_path)
+        if result:
+            return result
+
+    # ========== PPT / PPTX 回退链 ==========
+    elif ext in [".ppt", ".pptx"]:
+        # 方法1: poppt
+        if poppt_available:
+            try:
+                print("[PPT → PDF] 方法1: poppt")
+                poppt.ppt2pdf(path=input_path, output_path=os.path.dirname(pdf_path))
+                result = _find_generated_pdf(output_folder, base_name, pdf_path)
+                if result:
+                    print(f"[PPT → PDF] 方法1成功: {result}")
+                    return result
+            except Exception as e:
+                print(f"[PPT → PDF] 方法1失败: {e}")
+
+        # 方法2: comtypes PowerPoint COM
+        result = _try_comtypes_powerpoint(input_path, pdf_path)
+        if result:
+            return result
+
+        # 方法3: LibreOffice
+        result = _try_libreoffice(input_path, output_folder, pdf_path)
+        if result:
+            return result
+
+        # 方法4: win32com PowerPoint
+        result = _try_win32com_powerpoint(input_path, pdf_path)
+        if result:
+            return result
+
+    # ========== 其他格式（DOC, RTF, HTML, XML）回退链 ==========
+    else:
+        # 方法1: LibreOffice（通用转换器）
+        result = _try_libreoffice(input_path, output_folder, pdf_path)
+        if result:
+            return result
+
+        # 方法2: comtypes Word COM（仅 DOC/RTF）
+        if ext in [".doc", ".rtf"]:
+            result = _try_comtypes_word(input_path, pdf_path)
+            if result:
+                return result
+            result = _try_win32com_word(input_path, pdf_path)
+            if result:
+                return result
+
+    print(f"[转换失败] 所有方法均无法将 {input_path} 转换为 PDF")
+    return None
+
+
+def csv_to_xlsx(csv_path: str, xlsx_path: str) -> bool:
     os.makedirs(os.path.dirname(xlsx_path), exist_ok=True)
     try:
         if pandas_available:
@@ -306,7 +403,7 @@ def csv_to_xlsx(csv_path, xlsx_path):
         print(f"CSV → Excel失败: {e}")
         return False
 
-def xlsx_to_csv(xlsx_path, csv_path):
+def xlsx_to_csv(xlsx_path: str, csv_path: str) -> bool:
     os.makedirs(os.path.dirname(csv_path), exist_ok=True)
     try:
         if pandas_available:

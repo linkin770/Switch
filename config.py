@@ -27,7 +27,8 @@ class Config:
     
     # 线程池配置
     # 至少4个线程，最多CPU核心数的2倍，适用于IO密集型任务
-    MAX_WORKERS = max(4, os.cpu_count() * 2)
+    _cpu_count = os.cpu_count() or 1  # CPU数不可获取时默认为1
+    MAX_WORKERS: int = max(4, _cpu_count * 2)
     
     # 转换参数
     PDF_DPI = 300  # PDF转换为图像时的DPI值，影响图像清晰度
@@ -74,7 +75,8 @@ class ProductionConfig(Config):
     DEBUG = False  # 生产环境禁用调试模式
     
     # 生产环境可能需要更大的线程池，以处理更多并发请求
-    MAX_WORKERS = max(8, os.cpu_count() * 2)
+    _cpu_count = os.cpu_count() or 1
+    MAX_WORKERS: int = max(8, _cpu_count * 2)
 
 # 根据环境变量选择配置
 if os.environ.get("FLASK_ENV") == "production":
@@ -85,4 +87,4 @@ else:
     current_config = DevelopmentConfig()
 
 # 导出配置对象，供其他模块使用
-CONFIG = current_config
+CONFIG: Config = current_config
