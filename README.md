@@ -20,7 +20,7 @@
 
 ## 技术栈
 
-- **后端**：Python 3.12+, Flask 3.x
+- **后端**：Python 3.12+, Flask>=3.0,<4.0
 - **前端**：HTML5, CSS3, JavaScript
 - **转换引擎**：
   - PDF处理：PyMuPDF, pdf2docx
